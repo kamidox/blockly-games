@@ -10,6 +10,12 @@ APP_ENGINE_THIRD_PARTY = appengine/third-party
 SOY_COMPILER = java -jar third-party/SoyToJsSrcCompiler.jar --shouldProvideRequireSoyNamespaces --isUsingIjData
 SOY_EXTRACTOR = java -jar third-party/SoyMsgExtractor.jar
 
+SSH_HOST=vpn2.kamidox.com
+SSH_PORT=22
+SSH_USER=ubuntu
+SSH_TARGET_DIR=/home/ubuntu/blockly-games/
+SSH_KEY=/Users/kamidox/.ssh/sfox.studio.2.vpn.key.pem
+APP_DIR=appengine
 ##############################
 # Rules
 ##############################
@@ -60,6 +66,19 @@ common-en:
 	$(SOY_COMPILER) --outputPathFormat appengine/generated/en/soy.js --srcs appengine/template.soy
 
 en: index-en puzzle-en maze-en bird-en turtle-en movie-en pond-docs-en pond-tutor-en pond-duck-en
+
+zh-cn:
+	$(SOY_EXTRACTOR) --outputFile extracted_msgs.xlf --srcs $(ALL_TEMPLATES)
+	i18n/xliff_to_json.py --xlf extracted_msgs.xlf --templates $(ALL_TEMPLATES)
+	@for app in $(ALL_JSON); do \
+	  mkdir -p appengine/$$app/generated; \
+	  i18n/json_to_js.py --path_to_jar third-party --output_dir appengine/$$app/generated --template appengine/$$app/template.soy --key_file json/keys.json json/zh-hans.json; \
+	done
+	@for app in $(USER_APPS); do \
+	  echo; \
+	  echo --- $$app; \
+      python build-app.py $$app zh-hans; \
+	done
 
 languages:
 	$(SOY_EXTRACTOR) --outputFile extracted_msgs.xlf --srcs $(ALL_TEMPLATES)
@@ -114,6 +133,9 @@ clean-languages:
 clean-deps:
 	rm -rf appengine/third-party
 	rm -rf third-party
+
+publish:
+	rsync -e "ssh -p $(SSH_PORT) -i $(SSH_KEY)" -P -rvzc --delete $(APP_DIR)/ $(SSH_USER)@$(SSH_HOST):$(SSH_TARGET_DIR) --cvs-exclude
 
 # Prevent non-traditional rules from exiting with no changes.
 .PHONY: deps
